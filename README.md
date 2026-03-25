@@ -26,6 +26,17 @@ npm start
 
 `OPENAI_API_KEY` 未設定時はルールベース解析へ自動フォールバックします。
 
+## GitHub Codespaces
+
+このリポジトリは GitHub Codespaces でそのまま起動できます。
+
+1. GitHub のリポジトリ画面で `Code` -> `Codespaces` -> `Create codespace on master`
+2. Codespace が開いたら `.env` に `OPENAI_API_KEY` を設定
+3. ターミナルで `npm start` を実行
+4. `3000` 番ポートが自動転送されたら、Ports タブで `Visibility` を `Public` に変更
+
+開発用の一時公開として使う想定です。Codespace を停止すると公開も止まります。
+
 ## Environment Variables
 
 - `OPENAI_API_KEY`: OpenAI APIキー
