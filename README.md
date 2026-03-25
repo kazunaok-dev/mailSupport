@@ -45,6 +45,15 @@ npm start
 
 開発用の一時公開として使う想定です。Codespace を停止すると公開も止まります。
 
+## GitHub Pages
+
+GitHub Pages でも公開できますが、Pages は静的ホスティングのため、公開版はブラウザ内のローカル解析モードで動作します。
+
+- GitHub Pages 版では `server.js` や OpenAI API は使いません
+- 解析はブラウザ内のルールベース解析に自動フォールバックします
+- `docs/` 配下が GitHub Pages 配信用の静的サイトです
+
+GitHub のリポジトリ設定で `Settings` -> `Pages` を開き、Source を `Deploy from a branch`、Branch を `master`、Folder を `/docs` にすると公開できます。
 ## Environment Variables
 
 - `OPENAI_API_KEY`: OpenAI APIキー
