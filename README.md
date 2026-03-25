@@ -31,9 +31,17 @@ npm start
 このリポジトリは GitHub Codespaces でそのまま起動できます。
 
 1. GitHub のリポジトリ画面で `Code` -> `Codespaces` -> `Create codespace on master`
-2. Codespace が開いたら `.env` に `OPENAI_API_KEY` を設定
-3. ターミナルで `npm start` を実行
-4. `3000` 番ポートが自動転送されたら、Ports タブで `Visibility` を `Public` に変更
+2. Codespace が開いたら、まずターミナルで `node -v` と `npm -v` を実行して Node.js / npm が使えることを確認
+3. `.env` に `OPENAI_API_KEY` を設定
+4. ターミナルで `npm start` を実行
+5. `3000` 番ポートが自動転送されたら、Ports タブで `Visibility` を `Public` に変更
+
+### Codespaces トラブルシュート
+
+- `npm: command not found` と表示された場合は、dev container が正しく反映されていない可能性があります。
+- `F1` または `Ctrl + Shift + P` でコマンドパレットを開き、`Codespaces: Rebuild Container` を実行してください。
+- Rebuild 後にもう一度 `node -v` と `npm -v` を確認し、その後 `npm start` を実行してください。
+- それでも解決しない場合は、古い Codespace の可能性があるため、最新コミットから Codespace を作り直してください。
 
 開発用の一時公開として使う想定です。Codespace を停止すると公開も止まります。
 
