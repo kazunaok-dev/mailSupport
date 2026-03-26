@@ -1,4 +1,5 @@
 import { analyzeCaseTextClient } from "./browserAnalysis.js";
+import { analyzeCaseWithBrowserAI, getDefaultBrowserModel } from "./openaiBrowserAnalysis.js";
 
 const state = {
   caseRecord: null,
@@ -15,6 +16,18 @@ const messageViewer = document.querySelector("#messageViewer");
 const summaryCards = document.querySelector("#summaryCards");
 const summaryCardTemplate = document.querySelector("#summaryCardTemplate");
 const insightBar = document.querySelector("#insightBar");
+const apiKeyInput = document.querySelector("#apiKeyInput");
+const modelInput = document.querySelector("#modelInput");
+const clearKeyButton = document.querySelector("#clearKeyButton");
+
+const sessionKeyName = "mail-support-openai-api-key";
+apiKeyInput.value = sessionStorage.getItem(sessionKeyName) ?? "";
+modelInput.value = getDefaultBrowserModel();
+
+clearKeyButton.addEventListener("click", () => {
+  sessionStorage.removeItem(sessionKeyName);
+  apiKeyInput.value = "";
+});
 
 analyzeButton.addEventListener("click", async () => {
   const caseText = caseTextInput.value.trim();
@@ -84,10 +97,12 @@ function renderInsights() {
   const summary = state.caseRecord.case_summary;
   const cards = [
     {
-      title: state.caseRecord.analysis_mode === "ai" ? "AI解析" : "フォールバック解析",
+      title: state.caseRecord.analysis_mode.startsWith("ai") ? "AI解析" : "フォールバック解析",
       text:
-        state.caseRecord.analysis_mode === "ai"
-          ? "OpenAI を使って論点を人が読みやすい日本語に整理しています。"
+        state.caseRecord.analysis_mode.startsWith("ai")
+          ? state.runtimeMode === "browser_ai"
+            ? "GitHub Pages 上で、入力した API キーを使ってブラウザから OpenAI を直接呼び出しています。"
+            : "OpenAI を使って論点を人が読みやすい日本語に整理しています。"
           : state.runtimeMode === "static"
             ? "GitHub Pages 向けの静的モードです。ブラウザ内のローカル解析で表示しています。"
             : "OPENAI_API_KEY 未設定などのため、現在はルールベース解析で表示しています。"
@@ -288,6 +303,21 @@ function escapeRegExp(value) {
 }
 
 async function analyzeCase(caseText) {
+  const apiKey = apiKeyInput.value.trim();
+  if (apiKey) {
+    sessionStorage.setItem(sessionKeyName, apiKey);
+
+    try {
+      state.runtimeMode = "browser_ai";
+      return await analyzeCaseWithBrowserAI(caseText, {
+        apiKey,
+        model: modelInput.value.trim() || getDefaultBrowserModel()
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
   const apiUrl = resolveAppUrl("api/cases/analyze");
 
   try {

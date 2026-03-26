@@ -23,6 +23,19 @@
       </header>
 
       <section class="composer">
+        <div class="client-ai-settings">
+          <div class="settings-copy">
+            <strong>GitHub Pages 用 AI 設定</strong>
+            <p>API キーをこのブラウザのセッションだけに保持し、OpenAI を直接呼び出します。未入力時はローカル解析に自動フォールバックします。</p>
+          </div>
+          <div class="settings-fields">
+            <label for="apiKeyInput">OpenAI API Key</label>
+            <input id="apiKeyInput" type="password" placeholder="sk-..." autocomplete="off" />
+            <label for="modelInput">Model</label>
+            <input id="modelInput" type="text" value="gpt-5.4" />
+            <button id="clearKeyButton" class="secondary" type="button">キーをクリア</button>
+          </div>
+        </div>
         <label for="caseText">ケーステキスト</label>
         <textarea id="caseText" placeholder="メール往復をそのまま貼り付けてください"></textarea>
       </section>

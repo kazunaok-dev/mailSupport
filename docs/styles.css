@@ -125,6 +125,47 @@ button.secondary {
   font-weight: 700;
 }
 
+.client-ai-settings {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid var(--line);
+}
+
+.settings-copy strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.settings-copy p {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.settings-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 10px 12px;
+  align-items: end;
+}
+
+.settings-fields label {
+  margin-bottom: 0;
+}
+
+.settings-fields input {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.85);
+  padding: 12px 14px;
+  font: inherit;
+}
+
 textarea {
   width: 100%;
   min-height: 220px;
@@ -390,6 +431,14 @@ textarea {
 }
 
 @media (max-width: 1100px) {
+  .client-ai-settings {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-fields {
+    grid-template-columns: 1fr;
+  }
+
   .workspace {
     grid-template-columns: 1fr;
   }
