@@ -161,7 +161,8 @@ export async function analyzeCaseWithBrowserAI(caseText, options = {}) {
   }
 
   const payload = await response.json();
-  const parsed = JSON.parse(payload.output_text);
+  const responseText = extractResponseText(payload);
+  const parsed = JSON.parse(responseText);
   const issues = normalizeIssues(parsed.issues, base.messages);
 
   return {
@@ -215,4 +216,18 @@ function buildSummary(messages, issues, parsed) {
     handoff_summary: parsed.handoff_summary,
     recommended_next_step: parsed.recommended_next_step
   };
+}
+
+function extractResponseText(payload) {
+  const message = payload.output?.find((item) => item.type === "message" && item.role === "assistant");
+  const outputText = message?.content
+    ?.filter((item) => item.type === "output_text")
+    .map((item) => item.text)
+    .join("");
+
+  if (!outputText) {
+    throw new Error("OpenAI response did not contain output text.");
+  }
+
+  return outputText;
 }

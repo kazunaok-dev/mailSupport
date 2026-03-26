@@ -4,7 +4,8 @@ import { analyzeCaseWithBrowserAI, getDefaultBrowserModel } from "./openaiBrowse
 const state = {
   caseRecord: null,
   selectedIssueId: null,
-  runtimeMode: "server"
+  runtimeMode: "server",
+  lastAnalysisError: ""
 };
 
 const caseTextInput = document.querySelector("#caseText");
@@ -104,7 +105,9 @@ function renderInsights() {
             ? "GitHub Pages 上で、入力した API キーを使ってブラウザから OpenAI を直接呼び出しています。"
             : "OpenAI を使って論点を人が読みやすい日本語に整理しています。"
           : state.runtimeMode === "static"
-            ? "GitHub Pages 向けの静的モードです。ブラウザ内のローカル解析で表示しています。"
+            ? `GitHub Pages 向けの静的モードです。ブラウザ内のローカル解析で表示しています。${
+                state.lastAnalysisError ? ` AI 呼び出し失敗: ${state.lastAnalysisError}` : ""
+              }`
             : "OPENAI_API_KEY 未設定などのため、現在はルールベース解析で表示しています。"
     },
     { title: "ケース要約", text: summary.narrative_summary },
@@ -309,12 +312,14 @@ async function analyzeCase(caseText) {
 
     try {
       state.runtimeMode = "browser_ai";
+      state.lastAnalysisError = "";
       return await analyzeCaseWithBrowserAI(caseText, {
         apiKey,
         model: modelInput.value.trim() || getDefaultBrowserModel()
       });
     } catch (error) {
       console.error(error);
+      state.lastAnalysisError = error.message || String(error);
     }
   }
 
@@ -333,6 +338,7 @@ async function analyzeCase(caseText) {
     }
 
     state.runtimeMode = "server";
+    state.lastAnalysisError = "";
     return data;
   } catch {
     state.runtimeMode = "static";
