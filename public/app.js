@@ -130,7 +130,7 @@ function renderTree() {
       <h3>${escapeHtml(issue.display_title || issue.customer_question)}</h3>
       <p>${escapeHtml(issue.summary || issue.customer_question)}</p>
       <div class="chips">
-        ${renderStatusChip(issue.status)}
+        ${renderStatusChip(issue.status_v2 || issue.status)}
         ${
           issue.misunderstanding_flag !== "none"
             ? '<span class="chip warning">誤認候補あり</span>'
@@ -165,7 +165,7 @@ function renderDetail() {
       <p>${escapeHtml(issue.customer_question)}</p>
       <p>${escapeHtml(issue.summary || "")}</p>
       <div class="chips">
-        ${renderStatusChip(issue.status)}
+        ${renderStatusChip(issue.status_v2 || issue.status)}
         ${issue.parent_issue_id ? '<span class="chip">派生質問</span>' : '<span class="chip">主質問</span>'}
       </div>
     </section>
@@ -175,7 +175,12 @@ function renderDetail() {
     </section>
     <section class="detail-section">
       <h3>未解決理由</h3>
+      <p>${escapeHtml(issue.reason || "")}</p>
       <ul>${buildList(issue.unanswered_points?.length ? issue.unanswered_points : resolvePendingPoints(issue))}</ul>
+    </section>
+    <section class="detail-section">
+      <h3>判定根拠</h3>
+      <ul>${buildList((issue.evidence || []).map((item) => `${item.mailId}: ${item.text}`) || ["根拠はありません。"])}</ul>
     </section>
     <section class="detail-section">
       <h3>顧客に確認すべき追加情報</h3>
@@ -225,6 +230,10 @@ function renderMessages() {
 
 function renderStatusChip(status) {
   const map = {
+    answered: '<span class="chip success">回答済み</span>',
+    partially_answered: '<span class="chip warning">部分回答</span>',
+    unanswered: '<span class="chip danger">未回答</span>',
+    pending: '<span class="chip">確認中</span>',
     open: '<span class="chip danger">未回答</span>',
     answered_pending: '<span class="chip warning">回答済み未解決</span>',
     resolved: '<span class="chip success">解決済み</span>',

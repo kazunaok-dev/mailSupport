@@ -22,7 +22,7 @@ export async function analyzeCaseWithAI(messages, options = {}) {
           {
             type: "input_text",
             text:
-              "あなたは製品サポート窓口向けのケースアナリストです。顧客とサポートの往復メールを読み、担当者が短時間で状況を理解できるように論点を整理してください。質問の抜け漏れを避け、要約文は自然で実務向けの日本語にしてください。narrative_summary と handoff_summary は Markdown 形式で、短い見出しと箇条書きを使って読みやすく整形してください。recommended_next_step も 1〜3 行の簡潔な Markdown で返してください。各論点には、表示用タイトル、質問の要約、回答要約、未解決点、顧客に追加確認したい点、誤認候補、関連メールIDを含めてください。推測で断定せず、本文に根拠がある内容だけを返してください。"
+              "あなたは製品サポート窓口向けのケースアナリストです。まず顧客の質問を漏れなく台帳化し、その質問に後続のサポートメールだけを対応付けてください。メール本文にない回答を推測してはいけません。同じキーワードだけでは回答済みにせず、条件不足は未回答または部分回答にしてください。確認中、開発元確認中、後ほど回答は確定回答ではありません。各論点には元メールIDと回答原文を含め、statusは answered / partially_answered / unanswered / pending / resolved のいずれかにしてください。narrative_summary と handoff_summary は Markdown 形式で返してください。"
           }
         ]
       },
@@ -72,7 +72,7 @@ export async function analyzeCaseWithAI(messages, options = {}) {
                   customer_question: { type: "string" },
                   status: {
                     type: "string",
-                    enum: ["open", "answered_pending", "resolved", "on_hold"]
+                    enum: ["answered", "partially_answered", "unanswered", "pending", "resolved", "open", "answered_pending", "on_hold"]
                   },
                   answer_summary: { type: "string" },
                   unanswered_points: {

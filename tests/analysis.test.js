@@ -69,3 +69,31 @@ test("builds a draft reply with summary and confirmation items", async () => {
   assert.match(draft.draft_reply, /ご案内します/);
   assert.ok(Array.isArray(draft.confirmation_items));
 });
+
+test("keeps a second question unanswered when only the first is answered", async () => {
+  const result = await analyzeCaseText(`From: customer@example.com\n\n① OAuth移行は必要ですか？\n② パッチ適用は必要ですか？\n\nFrom: support@example.com\n\n① OAuth移行が必要です。`, "case-multi", { aiMode: "never" });
+  assert.equal(result.questions.length, 2);
+  assert.equal(result.questions[0].status_v2, "answered");
+  assert.equal(result.questions[1].status_v2, "unanswered");
+});
+
+test("does not treat a patch answer as answering the production condition", async () => {
+  const result = await analyzeCaseText(`From: customer@example.com\n\nパッチ適用は必要ですか？\nまた、本番環境にも適用が必要ですか？\n\nFrom: support@example.com\n\nパッチAの適用が必要です。`, "case-partial", { aiMode: "never" });
+  assert.equal(result.questions.length, 2);
+  assert.equal(result.questions[1].status_v2, "partially_answered");
+  assert.match(result.questions[1].reason, /本番/);
+});
+
+test("classifies confirmation notices as pending and strips quoted body", async () => {
+  const result = await analyzeCaseText(`From: customer@example.com\n\nVer.4.5へ戻すことはできますか？\n\nFrom: support@example.com\n\n開発元へ確認しております。\n\n-----Original Message-----\n> Ver.4.5へ戻すことはできますか？`, "case-pending", { aiMode: "never" });
+  assert.equal(result.questions[0].status_v2, "pending");
+  assert.match(result.messages[1].quotedBody, /Original Message/);
+  assert.doesNotMatch(result.messages[1].currentBody, /Original Message/);
+});
+
+test("retains auditable question and answer evidence", async () => {
+  const result = await analyzeCaseText(sampleCase, "case-evidence", { aiMode: "never" });
+  assert.ok(result.questions[0].evidence.length >= 1);
+  assert.ok(result.answers.every((answer) => answer.sourceText));
+  assert.ok(Array.isArray(result.audit.issues));
+});

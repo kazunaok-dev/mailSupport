@@ -7,6 +7,14 @@ const STATUS = {
   ON_HOLD: "on_hold"
 };
 
+const STATUS_V2 = {
+  ANSWERED: "answered",
+  PARTIALLY_ANSWERED: "partially_answered",
+  UNANSWERED: "unanswered",
+  PENDING: "pending",
+  RESOLVED: "resolved"
+};
+
 const MISUNDERSTANDING = {
   NONE: "none",
   SUSPECTED: "suspected",
@@ -18,7 +26,7 @@ const SUPPORT_MARKERS = [/support/i, /サポート/, /担当/];
 const QUESTION_SPLIT = /(?<=[。！？?\n])\s*/u;
 const QUESTION_HINTS = ["?", "？", "でしょうか", "教えて", "確認", "原因", "どれくらい", "未対応", "可能ですか"];
 const RESOLVED_HINTS = [/解決/i, /直りました/, /ありがとうございました/, /問題ありません/];
-const ON_HOLD_HINTS = [/確認中/, /継続調査/, /保留/, /確認できるまで/];
+const ON_HOLD_HINTS = [/確認中/, /確認しております/, /開発元へ確認/, /関連部署へ確認/, /継続調査/, /保留/, /確認できるまで/];
 
 export async function analyzeCaseText(caseText, caseId, options = {}) {
   const messages = parseMessages(caseText);
@@ -31,7 +39,11 @@ export async function analyzeCaseText(caseText, caseId, options = {}) {
       ai_enabled: false,
       case_summary: buildFallbackSummary([], []),
       messages: [],
-      issues: []
+      issues: [],
+      questions: [],
+      answers: [],
+      relations: [],
+      audit: { issues: [] }
     };
   }
 
@@ -44,7 +56,11 @@ export async function analyzeCaseText(caseText, caseId, options = {}) {
         ai_enabled: true,
         case_summary: buildCaseSummary(messages, aiResult.issues, aiResult),
         messages,
-        issues: aiResult.issues
+        issues: normalizeAIIssues(aiResult.issues),
+        questions: normalizeAIIssues(aiResult.issues),
+        answers: collectAnswers(aiResult.issues),
+        relations: collectRelations(aiResult.issues),
+        audit: { issues: [], source: "ai" }
       };
     } catch (error) {
       if (aiMode === "required") {
@@ -60,7 +76,11 @@ export async function analyzeCaseText(caseText, caseId, options = {}) {
     ai_enabled: false,
     case_summary: buildFallbackSummary(messages, issues),
     messages,
-    issues
+    issues,
+    questions: issues,
+    answers: collectAnswers(issues),
+    relations: collectRelations(issues),
+    audit: auditAnalysis(messages, issues)
   };
 }
 
@@ -126,18 +146,28 @@ function shouldUseAI(aiMode) {
 function buildMessage(id, chunk, index) {
   const lines = chunk.split("\n");
   const from = readHeader(lines, "From");
+  const to = readHeader(lines, "To");
+  const cc = readHeader(lines, "Cc");
   const date = readHeader(lines, "Date");
+  const subject = readHeader(lines, "Subject");
   const bodyStart = lines.findIndex((line) => line.trim() === "");
   const rawBody = bodyStart >= 0 ? lines.slice(bodyStart + 1).join("\n").trim() : lines.join("\n").trim();
   const { body, quotes, signature } = splitBodySections(rawBody);
+  const speakerInfo = inferSpeaker(from, body, index, subject);
 
   return {
     id,
     order: index,
-    speaker: inferSpeaker(from, body),
+    speaker: speakerInfo.speaker,
+    speaker_reason: speakerInfo.reason,
     from,
+    to,
+    cc,
+    subject,
     date,
     body,
+    currentBody: body,
+    quotedBody: quotes,
     quotes,
     signature,
     raw_text: chunk
@@ -164,7 +194,7 @@ function splitBodySections(rawBody) {
       continue;
     }
 
-    if (line.trim().startsWith(">") || /^[0-9]{4}-[0-9]{2}-[0-9]{2} .*:$/u.test(line.trim())) {
+    if (line.trim().startsWith(">") || /^-----Original Message-----$/u.test(line.trim()) || /^[0-9]{4}-[0-9]{2}-[0-9]{2} .*:$/u.test(line.trim())) {
       quoteLines.push(line);
       continue;
     }
@@ -184,16 +214,24 @@ function splitBodySections(rawBody) {
   };
 }
 
-function inferSpeaker(from, body) {
-  if (CUSTOMER_MARKERS.some((pattern) => pattern.test(from) || pattern.test(body))) {
-    return "customer";
+function inferSpeaker(from, body, order, subject) {
+  if (CUSTOMER_MARKERS.some((pattern) => pattern.test(from))) {
+    return { speaker: "customer", reason: "Fromヘッダーに顧客識別子があります。" };
   }
 
-  if (SUPPORT_MARKERS.some((pattern) => pattern.test(from) || pattern.test(body))) {
-    return "support";
+  if (SUPPORT_MARKERS.some((pattern) => pattern.test(from))) {
+    return { speaker: "support", reason: "Fromヘッダーにサポート識別子があります。" };
   }
 
-  return "unknown";
+  if (order === 0) {
+    return { speaker: "customer", reason: "識別情報がないため、スレッド最初の発言を顧客起点として扱いました。" };
+  }
+
+  if (/お問い合わせ|ご案内|回答|確認しております/u.test(body) && /re:/i.test(subject)) {
+    return { speaker: "support", reason: "返信件名と本文の応答表現から推定しました。" };
+  }
+
+  return { speaker: "unknown", reason: "顧客・サポートを判定できる根拠が不足しています。" };
 }
 
 function linkIssuesWithRules(messages) {
@@ -213,6 +251,8 @@ function linkIssuesWithRules(messages) {
 
   for (const issue of issues) {
     issue.status = determineStatus(issue);
+    issue.status_v2 = determineStatusV2(issue);
+    issue.reason = buildStatusReason(issue);
     issue.misunderstanding_flag = issue.possible_misunderstandings.length
       ? MISUNDERSTANDING.SUSPECTED
       : MISUNDERSTANDING.NONE;
@@ -260,6 +300,16 @@ function extractCustomerIssues(message, issueOffset) {
       summary: segment,
       parent_issue_id: parentIssueId,
       customer_question: segment,
+      question: segment,
+      normalized_question: normalizeQuestion(segment),
+      source_mail_id: message.id,
+      source_text: segment,
+      source_order: message.order,
+      speaker: message.speaker,
+      type: /確認|認識に相違/u.test(segment) ? "confirmation" : /調査|原因/u.test(segment) ? "investigation" : /お願|ご教示/u.test(segment) ? "request" : "question",
+      confidence: 0.8,
+      evidence: [{ mailId: message.id, text: segment }],
+      answers: [],
       status: STATUS.OPEN,
       support_answers: [],
       related_message_ids: [message.id],
@@ -315,7 +365,13 @@ function attachSupportAnswers(message, issues) {
     .filter(Boolean);
 
   for (const issue of issues) {
-    const relevant = sentences.filter((sentence) => isRelevantAnswer(issue, sentence));
+    if (message.order <= issue.source_order) {
+      continue;
+    }
+    let relevant = sentences.filter((sentence) => isRelevantAnswer(issue, sentence));
+    if (!relevant.length && issue === issues.filter((item) => item.source_order < message.order).at(-1)) {
+      relevant = sentences.filter((sentence) => ON_HOLD_HINTS.some((pattern) => pattern.test(sentence)));
+    }
     if (!relevant.length) {
       continue;
     }
@@ -323,9 +379,18 @@ function attachSupportAnswers(message, issues) {
     issue.support_answers.push({
       message_id: message.id,
       type: relevant.length > 1 ? "supplemental" : "direct",
-      text: relevant.join(" ")
+      text: relevant.join(" "),
+      sourceText: relevant.join(" ")
     });
+    issue.answers.push(...relevant.map((text, index) => ({
+      id: `answer-${message.id}-${index + 1}`,
+      sourceMailId: message.id,
+      sourceText: text,
+      summary: text,
+      speaker: message.speaker
+    })));
     issue.related_message_ids.push(message.id);
+    issue.evidence.push(...relevant.map((text) => ({ mailId: message.id, text })));
 
     for (const answer of relevant) {
       const correction = detectCorrection(issue, answer, message.id);
@@ -337,18 +402,26 @@ function attachSupportAnswers(message, issues) {
 }
 
 function isRelevantAnswer(issue, sentence) {
+  const questionNumber = issue.customer_question.match(/^[①②③④⑤0-9]+/u)?.[0];
+  const answerNumber = sentence.match(/^[①②③④⑤0-9]+/u)?.[0];
+  if (questionNumber && answerNumber && questionNumber !== answerNumber) {
+    return false;
+  }
   const keywords = collectKeywords(issue.customer_question);
   if (!keywords.length) {
     return false;
   }
 
-  return keywords.some((keyword) => sentence.includes(keyword));
+  const overlap = keywords.filter((keyword) => sentence.includes(keyword));
+  const explicitReference = /①|②|③|について|につきまして|ご質問/u.test(sentence);
+  return overlap.length >= 2 || (overlap.length === 1 && (explicitReference || ON_HOLD_HINTS.some((pattern) => pattern.test(sentence)) || /ではありません|必要です|対応しています|利用する/u.test(sentence)));
 }
 
 function collectKeywords(text) {
   const directTerms = text.match(/[A-Za-z]+-\d+|ポート\d+|[A-Za-z0-9_/-]{2,}|[一-龠ァ-ヶ]{2,}/gu) ?? [];
   const normalizedTerms = directTerms
     .map((token) => token.trim())
+    .map((token) => token.replace(/ですか|ますか|でしょうか|ください$/u, ""))
     .filter((token) => token.length > 1 && !STOP_WORDS.has(token));
 
   return [...new Set(normalizedTerms)];
@@ -401,6 +474,31 @@ function determineStatus(issue) {
   return STATUS.ANSWERED_PENDING;
 }
 
+function determineStatusV2(issue) {
+  const text = issue.support_answers.map((answer) => answer.text).join("\n");
+  if (!issue.support_answers.length) return STATUS_V2.UNANSWERED;
+  if (ON_HOLD_HINTS.some((pattern) => pattern.test(text))) return STATUS_V2.PENDING;
+  if (RESOLVED_HINTS.some((pattern) => pattern.test(text))) return STATUS_V2.RESOLVED;
+  const conditions = collectKeywords(issue.customer_question).filter((term) =>
+    /本番|開発|ステージング|OAuth|JWT|443|Shift_JIS|UTF-8|パッチ/u.test(term)
+  );
+  if (conditions.some((term) => !text.includes(term))) return STATUS_V2.PARTIALLY_ANSWERED;
+  return STATUS_V2.ANSWERED;
+}
+
+function buildStatusReason(issue) {
+  const status = issue.status_v2;
+  if (status === STATUS_V2.UNANSWERED) return "関連するサポート回答がありません。";
+  if (status === STATUS_V2.PENDING) return "確認中の連絡は確定回答ではありません。";
+  if (status === STATUS_V2.PARTIALLY_ANSWERED) {
+    const answerText = issue.support_answers.map((answer) => answer.text).join("\n");
+    const missing = collectKeywords(issue.customer_question).filter((term) => /本番|開発|ステージング|OAuth|JWT|443|Shift_JIS|UTF-8|パッチ/u.test(term) && !answerText.includes(term));
+    return `回答はありますが、${missing.join("、") || "質問の条件"}が明示されていません。`;
+  }
+  if (status === STATUS_V2.RESOLVED) return "メール本文に解決済みを示す表現があります。";
+  return "質問の論点に対応する具体的な回答があります。";
+}
+
 function buildCaseSummary(messages, issues, aiResult) {
   const base = buildFallbackSummary(messages, issues);
   return {
@@ -418,9 +516,9 @@ function buildCaseSummary(messages, issues, aiResult) {
 }
 
 function buildFallbackSummary(messages, issues) {
-  const openCount = issues.filter((issue) => issue.status === STATUS.OPEN).length;
-  const pendingCount = issues.filter((issue) => issue.status === STATUS.ANSWERED_PENDING).length;
-  const holdCount = issues.filter((issue) => issue.status === STATUS.ON_HOLD).length;
+  const openCount = issues.filter((issue) => (issue.status_v2 || issue.status) === STATUS_V2.UNANSWERED || issue.status === STATUS.OPEN).length;
+  const pendingCount = issues.filter((issue) => (issue.status_v2 || issue.status) === STATUS_V2.PARTIALLY_ANSWERED || issue.status === STATUS.ANSWERED_PENDING).length;
+  const holdCount = issues.filter((issue) => (issue.status_v2 || issue.status) === STATUS_V2.PENDING || issue.status === STATUS.ON_HOLD).length;
   const misunderstandingCount = issues.filter(
     (issue) => issue.misunderstanding_flag !== MISUNDERSTANDING.NONE
   ).length;
@@ -480,6 +578,60 @@ function buildConfirmationItems(issue) {
 function createCaseId() {
   const suffix = Math.random().toString(36).slice(2, 10);
   return `case-${suffix}`;
+}
+
+function normalizeQuestion(text) {
+  return text.replace(/[?？。]/gu, "").replace(/でしょうか|ですか|ご教示ください|確認をお願いいたします/gu, "").trim();
+}
+
+function collectAnswers(issues) {
+  return issues.flatMap((issue) => issue.answers ?? issue.support_answers ?? []).map((answer, index) => ({
+    id: answer.id ?? `answer-${index + 1}`,
+    sourceMailId: answer.sourceMailId ?? answer.message_id,
+    sourceText: answer.sourceText ?? answer.text,
+    summary: answer.summary ?? answer.text,
+    speaker: "support"
+  }));
+}
+
+function collectRelations(issues) {
+  return issues.flatMap((issue) => (issue.answers ?? []).map((answer) => ({
+    questionId: issue.id,
+    answerId: answer.id,
+    confidence: answer.type === "direct" ? 0.8 : 0.65,
+    evidence: [{ mailId: answer.message_id, text: answer.sourceText ?? answer.text }]
+  })));
+}
+
+function normalizeAIIssues(issues = []) {
+  return issues.map((issue, index) => ({
+    ...issue,
+    id: issue.id || `Q${String(index + 1).padStart(3, "0")}`,
+    status_v2: normalizeStatusV2(issue.status),
+    reason: issue.reason || "AI判定の根拠を確認してください。",
+    evidence: issue.evidence || []
+  }));
+}
+
+function normalizeStatusV2(status) {
+  return { open: STATUS_V2.UNANSWERED, answered_pending: STATUS_V2.PARTIALLY_ANSWERED, on_hold: STATUS_V2.PENDING, answered: STATUS_V2.ANSWERED, partially_answered: STATUS_V2.PARTIALLY_ANSWERED, unanswered: STATUS_V2.UNANSWERED, pending: STATUS_V2.PENDING, resolved: STATUS_V2.RESOLVED }[status] ?? STATUS_V2.UNANSWERED;
+}
+
+function auditAnalysis(messages, issues) {
+  return {
+    source: "rules",
+    issues: issues.filter((issue) => issue.status_v2 === STATUS_V2.ANSWERED && !issue.evidence.some((item) => item.mailId !== issue.source_mail_id)).map((issue) => ({
+      questionId: issue.id,
+      type: "missing_answer_evidence",
+      description: "回答済み判定の根拠メールを確認してください。"
+    })),
+    metrics: {
+      questionCount: issues.length,
+      unansweredCount: issues.filter((issue) => issue.status_v2 === STATUS_V2.UNANSWERED).length,
+      pendingCount: issues.filter((issue) => issue.status_v2 === STATUS_V2.PENDING).length
+    },
+    messageCount: messages.length
+  };
 }
 
 const STOP_WORDS = new Set([
