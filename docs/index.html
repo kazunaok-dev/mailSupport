@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Case Visualizer</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Support Case Visualizer</p>
+          <h1>質問ツリーで長い問い合わせをほどく</h1>
+          <p class="lead">
+            生メールを貼り付けるだけで、顧客の質問、サポート回答、未解決点、誤認候補を構造化します。
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button id="loadDemoButton" class="secondary">デモケースを読み込む</button>
+          <button id="analyzeButton" class="primary">ケースを解析する</button>
+        </div>
+      </header>
+
+      <section class="composer">
+        <div class="client-ai-settings">
+          <div class="settings-copy">
+            <strong>GitHub Pages 用 AI 設定</strong>
+            <p>API キーをこのブラウザのセッションだけに保持し、OpenAI を直接呼び出します。未入力時はローカル解析に自動フォールバックします。</p>
+          </div>
+          <div class="settings-fields">
+            <label for="apiKeyInput">OpenAI API Key</label>
+            <input id="apiKeyInput" type="password" placeholder="sk-..." autocomplete="off" />
+            <label for="modelInput">Model</label>
+            <input id="modelInput" type="text" value="gpt-5.4" />
+            <button id="clearKeyButton" class="secondary" type="button">キーをクリア</button>
+          </div>
+        </div>
+        <label for="caseText">ケーステキスト</label>
+        <textarea id="caseText" placeholder="メール往復をそのまま貼り付けてください"></textarea>
+      </section>
+
+      <section class="summary" id="summaryCards"></section>
+      <section class="insight-bar" id="insightBar"></section>
+
+      <main class="workspace">
+        <aside class="panel tree-panel">
+          <div class="panel-header">
+            <h2>質問ツリー</h2>
+            <p>主質問と派生質問</p>
+          </div>
+          <div id="issueTree" class="tree"></div>
+        </aside>
+
+        <section class="panel detail-panel">
+          <div class="panel-header">
+            <h2>論点詳細</h2>
+            <p>回答支援と解決状況</p>
+          </div>
+          <div id="issueDetail" class="detail empty">左の質問を選択してください。</div>
+        </section>
+
+        <aside class="panel message-panel">
+          <div class="panel-header">
+            <h2>元メール</h2>
+            <p>根拠箇所を確認</p>
+          </div>
+          <div id="messageViewer" class="messages empty">解析するとメール本文が表示されます。</div>
+        </aside>
+      </main>
+    </div>
+
+    <template id="summaryCardTemplate">
+      <article class="summary-card">
+        <span class="summary-label"></span>
+        <strong class="summary-value"></strong>
+      </article>
+    </template>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
