@@ -20,15 +20,27 @@ const insightBar = document.querySelector("#insightBar");
 const apiKeyInput = document.querySelector("#apiKeyInput");
 const modelInput = document.querySelector("#modelInput");
 const clearKeyButton = document.querySelector("#clearKeyButton");
+const analysisStatus = document.querySelector("#analysisStatus");
 
 const sessionKeyName = "mail-support-openai-api-key";
 apiKeyInput.value = sessionStorage.getItem(sessionKeyName) ?? "";
 modelInput.value = getDefaultBrowserModel();
 
+apiKeyInput.addEventListener("input", () => {
+  if (!state.caseRecord) {
+    renderAnalysisStatus();
+  }
+});
+
 clearKeyButton.addEventListener("click", () => {
   sessionStorage.removeItem(sessionKeyName);
   apiKeyInput.value = "";
+  if (!state.caseRecord) {
+    renderAnalysisStatus();
+  }
 });
+
+renderAnalysisStatus();
 
 analyzeButton.addEventListener("click", async () => {
   const caseText = caseTextInput.value.trim();
@@ -58,11 +70,25 @@ loadDemoButton.addEventListener("click", async () => {
 });
 
 function render() {
+  renderAnalysisStatus();
   renderSummary();
   renderInsights();
   renderTree();
   renderDetail();
   renderMessages();
+}
+
+function renderAnalysisStatus() {
+  if (!state.caseRecord) {
+    analysisStatus.textContent = apiKeyInput.value.trim()
+      ? "AI 解析を利用できます。"
+      : "API キーを入力すると AI 解析を利用できます。";
+    return;
+  }
+
+  analysisStatus.textContent = state.caseRecord.analysis_mode.startsWith("ai")
+    ? "今回の解析方法: AI"
+    : "今回の解析方法: ローカル解析";
 }
 
 function renderSummary() {
@@ -97,19 +123,6 @@ function renderInsights() {
 
   const summary = state.caseRecord.case_summary;
   const cards = [
-    {
-      title: state.caseRecord.analysis_mode.startsWith("ai") ? "AI解析" : "フォールバック解析",
-      text:
-        state.caseRecord.analysis_mode.startsWith("ai")
-          ? state.runtimeMode === "browser_ai"
-            ? "GitHub Pages 上で、入力した API キーを使ってブラウザから OpenAI を直接呼び出しています。"
-            : "OpenAI を使って論点を人が読みやすい日本語に整理しています。"
-          : state.runtimeMode === "static"
-            ? `GitHub Pages 向けの静的モードです。ブラウザ内のローカル解析で表示しています。${
-                state.lastAnalysisError ? ` AI 呼び出し失敗: ${state.lastAnalysisError}` : ""
-              }`
-            : "OPENAI_API_KEY 未設定などのため、現在はルールベース解析で表示しています。"
-    },
     { title: "ケース要約", text: summary.narrative_summary },
     { title: "引継ぎメモ", text: summary.handoff_summary },
     { title: "次の一手", text: summary.recommended_next_step }

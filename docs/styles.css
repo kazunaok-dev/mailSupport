@@ -146,6 +146,17 @@ button.secondary {
   line-height: 1.7;
 }
 
+.settings-copy .analysis-status {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
 .settings-fields {
   display: grid;
   grid-template-columns: 1fr 1fr auto;

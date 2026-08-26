@@ -92,13 +92,6 @@ function renderInsights() {
 
   const summary = state.caseRecord.case_summary;
   const cards = [
-    {
-      title: state.caseRecord.analysis_mode === "ai" ? "AI解析" : "フォールバック解析",
-      text:
-        state.caseRecord.analysis_mode === "ai"
-          ? "OpenAI を使って論点を人が読みやすい日本語に整理しています。"
-          : "OPENAI_API_KEY 未設定などのため、現在はルールベース解析で表示しています。"
-    },
     { title: "ケース要約", text: summary.narrative_summary },
     { title: "引継ぎメモ", text: summary.handoff_summary },
     { title: "次の一手", text: summary.recommended_next_step }
